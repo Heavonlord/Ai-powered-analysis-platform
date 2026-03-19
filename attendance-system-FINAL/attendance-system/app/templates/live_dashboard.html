@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block title %}Live Dashboard — {{ course.code }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.student-tile {
+    border-radius: 14px;
+    border: 2px solid #e9ecef;
+    padding: 12px;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: default;
+}
+.student-tile.present  { background: #d4edda; border-color: #28a745; }
+.student-tile.absent   { background: #f8d7da; border-color: #dc3545; }
+.student-tile.late     { background: #fff3cd; border-color: #ffc107; }
+.student-tile.pending  { background: #f8f9fa; border-color: #dee2e6; }
+.student-tile.just-marked { animation: popIn 0.4s ease; }
+@keyframes popIn {
+    0%   { transform: scale(0.85); opacity: 0.4; }
+    60%  { transform: scale(1.08); }
+    100% { transform: scale(1);    opacity: 1; }
+}
+.live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+}
+.live-dot {
+    width: 9px; height: 9px; background: #28a745;
+    border-radius: 50%; animation: blink 1.2s infinite;
+}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+#statsBar { background: linear-gradient(135deg,#1F3864,#2E75B6); color:white; border-radius:16px; padding:16px 24px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2 class="fw-bold mb-0">
+            <span class="live-badge">
+                <span class="live-dot"></span>
+                Live Dashboard
+            </span>
+        </h2>
+        <p class="text-muted mb-0">{{ course.name }} — {{ course.code }}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('main.mark_attendance', course_id=course.id) }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil-square me-1"></i>Mark Attendance
+        </a>
+        <a href="{{ url_for('main.qr_display', course_id=course.id) }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-qr-code me-1"></i>QR Mode
+        </a>
+    </div>
+</div>
+
+<!-- Live Stats Bar -->
+<div id="statsBar" class="mb-4">
+    <div class="row g-3 text-center">
+        <div class="col-3">
+            <div class="h3 fw-bold mb-0" id="liveTotal">{{ students|length }}</div>
+            <small class="opacity-75">Total</small>
+        </div>
+        <div class="col-3">
+            <div class="h3 fw-bold mb-0 text-success" id="livePresent" style="color:#7dffb0!important">0</div>
+            <small class="opacity-75">Present</small>
+        </div>
+        <div class="col-3">
+            <div class="h3 fw-bold mb-0" id="liveAbsent" style="color:#ffb3b3!important">0</div>
+            <small class="opacity-75">Absent</small>
+        </div>
+        <div class="col-3">
+            <div class="h3 fw-bold mb-0" id="livePct" style="color:#ffe066!important">0%</div>
+            <small class="opacity-75">Live %</small>
+        </div>
+    </div>
+</div>
+
+<!-- Student Tiles Grid -->
+<div class="row g-2" id="studentGrid">
+    {% for s in students %}
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+        <div class="student-tile pending" id="tile_{{ s.id }}"
+             data-student-id="{{ s.id }}" data-name="{{ s.username }}" data-status="pending">
+            <div class="fw-semibold small text-truncate">{{ s.username }}</div>
+            <div class="text-muted" style="font-size:0.75rem">{{ s.roll_no or '—' }}</div>
+            <div class="mt-1" id="tile_status_{{ s.id }}">
+                <span class="badge bg-secondary" style="font-size:0.65rem">Pending</span>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Activity Feed -->
+<div class="card border-0 shadow-sm rounded-4 mt-4">
+    <div class="card-header bg-white border-0 pt-3 pb-0 px-4">
+        <h6 class="fw-bold mb-0"><i class="bi bi-activity me-2"></i>Live Activity Feed</h6>
+    </div>
+    <div class="card-body px-4" id="activityFeed" style="max-height:200px;overflow-y:auto">
+        <div class="text-muted text-center py-3 small" id="feedEmpty">Waiting for activity...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const courseId = {{ course.id }};
+const socket = io();
+
+// Join course room for live updates
+socket.emit('join_course', { course_id: courseId });
+
+// Track attendance state
+const state = {};
+document.querySelectorAll('.student-tile').forEach(tile => {
+    state[tile.dataset.studentId] = 'pending';
+});
+
+function updateStats() {
+    const vals = Object.values(state);
+    const present = vals.filter(s => s === 'present' || s === 'late').length;
+    const absent  = vals.filter(s => s === 'absent').length;
+    const total   = vals.length;
+    const marked  = present + absent + vals.filter(s => s === 'late').length;
+    const pct     = marked > 0 ? Math.round((present / marked) * 100) : 0;
+
+    document.getElementById('livePresent').textContent = present;
+    document.getElementById('liveAbsent').textContent  = absent;
+    document.getElementById('livePct').textContent     = pct + '%';
+}
+
+function setTileStatus(studentId, status) {
+    const tile = document.getElementById('tile_' + studentId);
+    const statusEl = document.getElementById('tile_status_' + studentId);
+    if (!tile) return;
+
+    // Remove all status classes, add new one
+    tile.classList.remove('present', 'absent', 'late', 'pending', 'just-marked');
+    void tile.offsetWidth; // reflow to restart animation
+    tile.classList.add(status, 'just-marked');
+    tile.dataset.status = status;
+
+    const labels = { present: ['bg-success', 'Present'], absent: ['bg-danger', 'Absent'],
+                     late: ['bg-warning text-dark', 'Late'], pending: ['bg-secondary', 'Pending'] };
+    const [cls, label] = labels[status] || labels.pending;
+    statusEl.innerHTML = `<span class="badge ${cls}" style="font-size:0.65rem">${label}</span>`;
+
+    state[studentId] = status;
+    updateStats();
+}
+
+function addFeedItem(message, type = 'info') {
+    const feed = document.getElementById('activityFeed');
+    const empty = document.getElementById('feedEmpty');
+    if (empty) empty.remove();
+
+    const colors = { success: '#28a745', danger: '#dc3545', warning: '#ffc107', info: '#2E75B6' };
+    const now = new Date().toLocaleTimeString();
+    const item = document.createElement('div');
+    item.className = 'py-2 border-bottom d-flex gap-2 align-items-center';
+    item.innerHTML = `
+        <div class="rounded-circle d-flex align-items-center justify-content-center text-white"
+             style="width:28px;height:28px;min-width:28px;background:${colors[type]}">
+             <i class="bi bi-check-lg" style="font-size:0.75rem"></i>
+        </div>
+        <div class="flex-grow-1 small">${message}</div>
+        <small class="text-muted">${now}</small>`;
+    feed.insertBefore(item, feed.firstChild);
+}
+
+// Listen for QR scans (student_scanned event)
+socket.on('student_scanned', data => {
+    if (data.course_id !== courseId) return;
+    setTileStatus(data.student_id || '', 'present');
+    addFeedItem(`<strong>${data.student_name}</strong> (${data.roll_no || 'N/A'}) marked via QR`, 'success');
+});
+
+// Listen for bulk attendance updates
+socket.on('attendance_updated', data => {
+    if (data.course_id !== courseId) return;
+    addFeedItem(`Attendance saved — ${data.count} students updated for ${data.date}`, 'info');
+    // Reload tile statuses from server after a short delay
+    setTimeout(() => location.reload(), 1500);
+});
+
+// Load existing attendance for today via fetch
+fetch(`/api/student/0/trend/0`) // placeholder — real endpoint below
+    .catch(() => {});
+
+// Keyboard: press R to refresh
+document.addEventListener('keydown', e => {
+    if (e.key === 'r' || e.key === 'R') location.reload();
+});
+
+updateStats();
+</script>
+{% endblock %}

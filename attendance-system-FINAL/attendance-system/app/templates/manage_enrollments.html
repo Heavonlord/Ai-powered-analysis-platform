@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Enrollments — {{ course.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.teacher_dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Enrollments</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold mb-0"><i class="bi bi-people me-2 text-primary"></i>Manage Enrollments</h2>
+        <p class="text-muted mb-0">{{ course.name }} — {{ course.code }}</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Enrolled Students -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-white border-0 rounded-top-4 pt-3 pb-0 px-4">
+                <h5 class="fw-bold mb-0 text-success">
+                    <i class="bi bi-person-check me-2"></i>Enrolled ({{ enrolled_students|length }})
+                </h5>
+            </div>
+            <div class="card-body px-4">
+                <form method="POST">
+                    <input type="hidden" name="action" value="unenroll">
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" placeholder="Search enrolled..." id="enrolledSearch">
+                    </div>
+                    <div style="max-height: 400px; overflow-y: auto;" id="enrolledList">
+                        {% if not enrolled_students %}
+                        <div class="text-center text-muted py-3">No students enrolled yet.</div>
+                        {% else %}
+                        {% for s in enrolled_students %}
+                        <div class="d-flex align-items-center gap-2 py-2 border-bottom student-item">
+                            <input type="checkbox" class="form-check-input" name="student_ids" value="{{ s.id }}">
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">{{ s.username }}</div>
+                                <small class="text-muted">{{ s.roll_no or s.email }}</small>
+                            </div>
+                            <span class="badge bg-light text-dark">{{ s.roll_no or 'N/A' }}</span>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    {% if enrolled_students %}
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll('enrolled')">Select All</button>
+                        <button type="submit" class="btn btn-danger btn-sm ms-auto"
+                                onclick="return confirm('Unenroll selected students?')">
+                            <i class="bi bi-person-dash me-1"></i>Unenroll Selected
+                        </button>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unenrolled Students -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-white border-0 rounded-top-4 pt-3 pb-0 px-4">
+                <h5 class="fw-bold mb-0 text-muted">
+                    <i class="bi bi-person-plus me-2"></i>Available to Enroll ({{ unenrolled_students|length }})
+                </h5>
+            </div>
+            <div class="card-body px-4">
+                <form method="POST">
+                    <input type="hidden" name="action" value="enroll">
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" placeholder="Search students..." id="unenrolledSearch">
+                    </div>
+                    <div style="max-height: 400px; overflow-y: auto;" id="unenrolledList">
+                        {% if not unenrolled_students %}
+                        <div class="text-center text-muted py-3">All students are enrolled.</div>
+                        {% else %}
+                        {% for s in unenrolled_students %}
+                        <div class="d-flex align-items-center gap-2 py-2 border-bottom student-item">
+                            <input type="checkbox" class="form-check-input unenrolled-cb" name="student_ids" value="{{ s.id }}">
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">{{ s.username }}</div>
+                                <small class="text-muted">{{ s.roll_no or s.email }}</small>
+                            </div>
+                            <span class="badge bg-light text-dark">{{ s.roll_no or 'N/A' }}</span>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    {% if unenrolled_students %}
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleAll('unenrolled')">Select All</button>
+                        <button type="submit" class="btn btn-success btn-sm ms-auto">
+                            <i class="bi bi-person-check me-1"></i>Enroll Selected
+                        </button>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleAll(type) {
+    const selector = type === 'enrolled' ? '#enrolledList input[type=checkbox]' : '.unenrolled-cb';
+    const boxes = document.querySelectorAll(selector);
+    const allChecked = [...boxes].every(b => b.checked);
+    boxes.forEach(b => b.checked = !allChecked);
+}
+
+function setupSearch(inputId, listId) {
+    document.getElementById(inputId)?.addEventListener('input', function() {
+        const val = this.value.toLowerCase();
+        document.querySelectorAll(`#${listId} .student-item`).forEach(item => {
+            item.style.display = item.textContent.toLowerCase().includes(val) ? '' : 'none';
+        });
+    });
+}
+setupSearch('enrolledSearch', 'enrolledList');
+setupSearch('unenrolledSearch', 'unenrolledList');
+</script>
+{% endblock %}

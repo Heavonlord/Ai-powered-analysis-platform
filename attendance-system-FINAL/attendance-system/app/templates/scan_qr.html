@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Scan QR Code{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold"><i class="bi bi-qr-code-scan me-2 text-primary"></i>Scan QR Code</h2>
+            <p class="text-muted">Scan the QR code displayed by your teacher to mark attendance</p>
+        </div>
+
+        <!-- Camera Scanner -->
+        <div class="card border-0 shadow-sm rounded-4 mb-3">
+            <div class="card-body p-4">
+                <div class="text-center mb-3">
+                    <button class="btn btn-primary" id="startCameraBtn" onclick="startCamera()">
+                        <i class="bi bi-camera-video me-1"></i>Start Camera Scanner
+                    </button>
+                </div>
+                <div id="cameraSection" style="display:none">
+                    <video id="video" class="w-100 rounded-3" style="max-height:300px;" autoplay playsinline></video>
+                    <canvas id="canvas" style="display:none"></canvas>
+                    <div class="text-center mt-2">
+                        <div id="scanStatus" class="text-muted small">📷 Scanning...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manual Token Entry -->
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-white border-0 pt-3 pb-0 px-4">
+                <h6 class="fw-bold mb-0">Or enter token manually</h6>
+            </div>
+            <div class="card-body px-4">
+                <form method="POST" action="{{ url_for('main.scan_qr') }}">
+                    <div class="mb-3">
+                        <label class="form-label text-muted small">QR Token (from teacher)</label>
+                        <input type="text" name="token" class="form-control" placeholder="Paste token here..." required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-check-circle me-1"></i>Mark My Attendance
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script>
+let stream = null;
+
+async function startCamera() {
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+        document.getElementById('cameraSection').style.display = '';
+        document.getElementById('startCameraBtn').style.display = 'none';
+        scanFrame();
+    } catch (err) {
+        alert('Camera access denied. Please use manual entry.');
+    }
+}
+
+function scanFrame() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code && code.data.startsWith('ATTENDANCE:')) {
+            document.getElementById('scanStatus').textContent = '✅ QR Code detected! Submitting...';
+            const token = code.data.replace('ATTENDANCE:', '');
+            fetch('/api/qr/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    document.getElementById('scanStatus').innerHTML = '<span class="text-success fw-bold">✅ ' + data.message + '</span>';
+                    if (stream) stream.getTracks().forEach(t => t.stop());
+                    setTimeout(() => window.location.href = '/student', 2000);
+                } else {
+                    document.getElementById('scanStatus').innerHTML = '<span class="text-danger">❌ ' + data.message + '</span>';
+                    setTimeout(scanFrame, 2000);
+                }
+            });
+            return;
+        }
+    }
+    requestAnimationFrame(scanFrame);
+}
+</script>
+{% endblock %}

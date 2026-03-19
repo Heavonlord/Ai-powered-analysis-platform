@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block title %}System Analytics{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-graph-up me-2 text-primary"></i>System Analytics</h2>
+        <p class="text-muted mb-0">Institution-wide attendance overview</p>
+    </div>
+    <a href="{{ url_for('main.admin_dashboard') }}" class="btn btn-outline-secondary btn-sm">← Dashboard</a>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 text-center py-3">
+            <div class="h2 fw-bold text-primary">{{ overall_avg }}%</div>
+            <small class="text-muted">Overall Avg Attendance</small>
+        </div>
+    </div>
+    {% for risk, color in [('SAFE','success'),('CAUTION','warning'),('CRITICAL','danger')] %}
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 text-center py-3">
+            <div class="h2 fw-bold text-{{ color }}">{{ risk_counts[risk] }}</div>
+            <small class="text-muted">{{ risk }}</small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <div class="col-md-5">
+        <div class="card border-0 shadow-sm rounded-4 p-4">
+            <h6 class="fw-bold mb-3">Risk Distribution</h6>
+            <canvas id="riskChart" height="220"></canvas>
+        </div>
+    </div>
+    <div class="col-md-7">
+        <div class="card border-0 shadow-sm rounded-4 p-4">
+            <h6 class="fw-bold mb-3">Course Performance</h6>
+            <canvas id="courseChart" height="220"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Course Stats Table -->
+<div class="card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header bg-white border-0 pt-3 pb-0 px-4">
+        <h5 class="fw-bold mb-0"><i class="bi bi-book me-2"></i>Course Performance</h5>
+    </div>
+    <div class="card-body px-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr><th>Course</th><th>Code</th><th>Teacher</th><th>Students</th><th>Avg Attendance</th><th>At Risk</th></tr>
+                </thead>
+                <tbody>
+                    {% for cs in course_stats %}
+                    <tr>
+                        <td><div class="fw-semibold">{{ cs.course.name }}</div></td>
+                        <td><span class="badge bg-primary">{{ cs.course.code }}</span></td>
+                        <td>{{ cs.course.teacher.username if cs.course.teacher else '—' }}</td>
+                        <td>{{ cs.enrolled }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1 rounded-pill" style="height:8px; max-width:100px">
+                                    <div class="progress-bar {% if cs.avg >= 75 %}bg-success{% else %}bg-danger{% endif %}"
+                                         style="width:{{ cs.avg }}%"></div>
+                                </div>
+                                <span class="fw-semibold">{{ cs.avg }}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if cs.at_risk > 0 %}
+                            <span class="badge bg-danger">{{ cs.at_risk }} at risk</span>
+                            {% else %}
+                            <span class="badge bg-success">All safe</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Student Risk Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 pt-3 pb-0 px-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0"><i class="bi bi-people me-2"></i>Student Risk Overview</h5>
+            <input type="text" id="studentSearch" class="form-control form-control-sm w-auto" placeholder="Search...">
+        </div>
+    </div>
+    <div class="card-body px-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="studentTable">
+                <thead class="table-light">
+                    <tr><th>Student</th><th>Roll No</th><th>Overall %</th><th>Risk</th></tr>
+                </thead>
+                <tbody>
+                    {% for ss in student_stats %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ ss.student.username }}</div>
+                            <small class="text-muted">{{ ss.student.email }}</small>
+                        </td>
+                        <td>{{ ss.student.roll_no or '—' }}</td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress rounded-pill" style="height:6px;width:80px">
+                                    <div class="progress-bar {% if ss.pct >= 75 %}bg-success{% else %}bg-danger{% endif %}"
+                                         style="width:{{ ss.pct }}%"></div>
+                                </div>
+                                <span>{{ ss.pct }}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge rounded-pill
+                                {% if ss.risk == 'SAFE' %}bg-success
+                                {% elif ss.risk == 'CAUTION' %}bg-warning text-dark
+                                {% elif ss.risk == 'WARNING' %}bg-warning text-dark
+                                {% else %}bg-danger{% endif %}">
+                                {{ ss.risk }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Risk Distribution Pie Chart
+new Chart(document.getElementById('riskChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Safe (≥80%)', 'Caution (75-79%)', 'Warning (65-74%)', 'Critical (<65%)'],
+        datasets: [{
+            data: [{{ risk_counts.SAFE }}, {{ risk_counts.CAUTION }}, {{ risk_counts.WARNING }}, {{ risk_counts.CRITICAL }}],
+            backgroundColor: ['#28a745', '#ffc107', '#fd7e14', '#dc3545'],
+            borderWidth: 0
+        }]
+    },
+    options: { cutout: '65%', plugins: { legend: { position: 'bottom' } } }
+});
+
+// Course Performance Bar Chart
+const courseLabels = [{% for cs in course_stats %}'{{ cs.course.code }}'{% if not loop.last %},{% endif %}{% endfor %}];
+const courseAvgs = [{% for cs in course_stats %}{{ cs.avg }}{% if not loop.last %},{% endif %}{% endfor %}];
+new Chart(document.getElementById('courseChart'), {
+    type: 'bar',
+    data: {
+        labels: courseLabels,
+        datasets: [{
+            label: 'Avg Attendance %',
+            data: courseAvgs,
+            backgroundColor: courseAvgs.map(v => v >= 75 ? '#28a745' : '#dc3545'),
+            borderRadius: 6
+        }]
+    },
+    options: {
+        scales: { y: { beginAtZero: true, max: 100 } },
+        plugins: { legend: { display: false } }
+    }
+});
+
+// Search
+document.getElementById('studentSearch')?.addEventListener('input', function() {
+    const val = this.value.toLowerCase();
+    document.querySelectorAll('#studentTable tbody tr').forEach(r => {
+        r.style.display = r.textContent.toLowerCase().includes(val) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

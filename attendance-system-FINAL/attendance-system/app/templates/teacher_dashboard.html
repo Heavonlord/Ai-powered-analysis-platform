@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1"><i class="bi bi-person-workspace me-2 text-success"></i>Teacher Dashboard</h2>
+        <p class="text-muted mb-0">Welcome back, <strong>{{ current_user.username }}</strong></p>
+    </div>
+</div>
+
+{% if not course_data %}
+<div class="card border-0 shadow-sm rounded-4 text-center py-5">
+    <div class="card-body">
+        <div class="fs-1 mb-3">📚</div>
+        <h4 class="text-muted">No courses assigned yet</h4>
+        <p class="text-muted">Contact your administrator to assign courses to you.</p>
+    </div>
+</div>
+{% else %}
+<div class="row g-4">
+    {% for cd in course_data %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card border-0 shadow-sm rounded-4 course-card h-100">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="badge bg-primary mb-2">{{ cd.course.code }}</span>
+                        <h5 class="fw-bold mb-1">{{ cd.course.name }}</h5>
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-people me-1"></i>{{ cd.enrolled }} students enrolled
+                        </p>
+                    </div>
+                    <div class="text-end">
+                        <div class="h4 fw-bold text-primary mb-0">{{ cd.avg }}%</div>
+                        <small class="text-muted">avg attendance</small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="progress rounded-pill" style="height: 8px;">
+                        <div class="progress-bar {% if cd.avg >= 80 %}bg-success{% elif cd.avg >= 75 %}bg-warning{% else %}bg-danger{% endif %}"
+                             style="width: {{ cd.avg }}%"></div>
+                    </div>
+                </div>
+
+                <div class="row g-2 text-center mb-3">
+                    <div class="col-4">
+                        <div class="bg-light rounded-3 py-2">
+                            <div class="fw-bold">{{ cd.enrolled }}</div>
+                            <small class="text-muted">Students</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="bg-light rounded-3 py-2">
+                            <div class="fw-bold">{{ cd.total_classes }}</div>
+                            <small class="text-muted">Classes</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="bg-light rounded-3 py-2">
+                            <div class="fw-bold text-{% if cd.avg >= 75 %}success{% else %}danger{% endif %}">
+                                {{ cd.avg }}%
+                            </div>
+                            <small class="text-muted">Avg</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <div class="btn-group">
+                        <a href="{{ url_for('main.mark_attendance', course_id=cd.course.id) }}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-pencil-square me-1"></i>Mark Attendance
+                        </a>
+                        <button type="button" class="btn btn-primary btn-sm dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown"></button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('main.mark_attendance', course_id=cd.course.id) }}">
+                                <i class="bi bi-pencil me-2"></i>Manual Marking</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('main.qr_display', course_id=cd.course.id) }}">
+                                <i class="bi bi-qr-code me-2"></i>QR Code</a></li>
+                        </ul>
+                    </div>
+                    <div class="btn-group">
+                        <a href="{{ url_for('main.course_analytics', course_id=cd.course.id) }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-graph-up me-1"></i>Analytics
+                        </a>
+                        <a href="{{ url_for('main.manage_enrollments', course_id=cd.course.id) }}" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-people me-1"></i>Enrollments
+                        </a>
+                        <a href="{{ url_for('main.export_attendance', course_id=cd.course.id) }}" class="btn btn-outline-success btn-sm">
+                            <i class="bi bi-file-earmark-excel me-1"></i>Export
+                        </a>
+                        <a href="{{ url_for('main.live_dashboard', course_id=cd.course.id) }}" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-broadcast me-1"></i>Live
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

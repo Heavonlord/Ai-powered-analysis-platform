@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% block title %}Analytics — {{ course.code }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.teacher_dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Analytics</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>Course Analytics</h2>
+        <p class="text-muted mb-0">{{ course.name }} — {{ course.code }}</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('main.export_attendance', course_id=course.id) }}" class="btn btn-success btn-sm">
+            <i class="bi bi-file-earmark-excel me-1"></i>Export Excel
+        </a>
+        <a href="{{ url_for('main.mark_attendance', course_id=course.id) }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil-square me-1"></i>Mark Attendance
+        </a>
+    </div>
+</div>
+
+<!-- Overview Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 text-center py-3">
+            <div class="h2 fw-bold text-primary mb-0">{{ avg_pct }}%</div>
+            <small class="text-muted">Avg Attendance</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 text-center py-3">
+            <div class="h2 fw-bold text-info mb-0">{{ total_classes }}</div>
+            <small class="text-muted">Total Classes</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 text-center py-3">
+            <div class="h2 fw-bold text-success mb-0">{{ risk_counts.SAFE }}</div>
+            <small class="text-muted">Safe (≥80%)</small>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 text-center py-3">
+            <div class="h2 fw-bold text-danger mb-0">{{ risk_counts.CRITICAL }}</div>
+            <small class="text-muted">Critical (&lt;65%)</small>
+        </div>
+    </div>
+</div>
+
+<!-- Risk Distribution -->
+<div class="row g-3 mb-4">
+    {% for risk, color, label in [('SAFE','success','≥80%'),('CAUTION','warning','75-79%'),('WARNING','orange','65-74%'),('CRITICAL','danger','<65%')] %}
+    <div class="col-6 col-md-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="fw-bold fs-4">{{ risk_counts[risk] }}</div>
+                    <span class="badge bg-{{ color }} {% if color == 'warning' or color == 'orange' %}text-dark{% endif %}">{{ risk }}</span>
+                    <div class="small text-muted">{{ label }}</div>
+                </div>
+                <div class="text-{{ color }} fs-2 opacity-25">●</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Student Analytics Table -->
+<div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-white border-0 rounded-top-4 pt-3 pb-0 px-4">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0"><i class="bi bi-people me-2"></i>Student-wise Analytics</h5>
+            <input type="text" id="studentSearch" class="form-control form-control-sm w-auto" placeholder="Search student...">
+        </div>
+    </div>
+    <div class="card-body px-4">
+        {% if not student_analytics %}
+        <div class="text-center py-4 text-muted">No students enrolled in this course.</div>
+        {% else %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="analyticsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Student</th>
+                        <th>Roll No</th>
+                        <th>Classes</th>
+                        <th>Present</th>
+                        <th>Absent</th>
+                        <th>Percentage</th>
+                        <th>Risk</th>
+                        <th>Can Miss</th>
+                        <th>Predict</th>
+                        <th>Alert</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sa in student_analytics %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ sa.student.username }}</div>
+                            <small class="text-muted">{{ sa.student.email }}</small>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ sa.student.roll_no or 'N/A' }}</span></td>
+                        <td>{{ sa.total }}</td>
+                        <td class="text-success fw-semibold">{{ sa.present }}</td>
+                        <td class="text-danger fw-semibold">{{ sa.absent }}</td>
+                        <td style="min-width: 140px">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1 rounded-pill" style="height: 8px;">
+                                    <div class="progress-bar bg-{{ sa.color if sa.color != 'orange' else 'warning' }}"
+                                         style="width: {{ sa.pct }}%"></div>
+                                </div>
+                                <span class="fw-bold small">{{ sa.pct }}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge rounded-pill
+                                {% if sa.risk == 'SAFE' %}bg-success
+                                {% elif sa.risk == 'CAUTION' %}bg-warning text-dark
+                                {% elif sa.risk == 'WARNING' %}bg-orange text-white
+                                {% else %}bg-danger{% endif %}">
+                                {{ sa.risk }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if sa.pct >= 75 %}
+                                <span class="text-success small">✅ Can miss {{ sa.can_miss }}</span>
+                            {% else %}
+                                <span class="text-danger small">⚠️ Need {{ sa.classes_needed }} more</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('main.student_prediction', course_id=course.id, student_id=sa.student.id) }}"
+                               class="btn btn-info btn-sm" title="ML Prediction">
+                                <i class="bi bi-graph-up-arrow"></i>
+                            </a>
+                        </td>
+                        <td>
+                            {% if sa.pct < 80 %}
+                            <form method="POST" action="{{ url_for('main.send_alert', student_id=sa.student.id, course_id=course.id) }}">
+                                <button class="btn btn-warning btn-sm" title="Send parent alert"
+                                        onclick="return confirm('Send alert to parent of {{ sa.student.username }}?')">
+                                    <i class="bi bi-bell-fill"></i>
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('studentSearch')?.addEventListener('input', function() {
+    const val = this.value.toLowerCase();
+    document.querySelectorAll('#analyticsTable tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(val) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

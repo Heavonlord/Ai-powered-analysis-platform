@@ -1,0 +1,322 @@
+{% extends 'base.html' %}
+{% block title %}Mark Attendance — {{ course.code }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.student-row { transition: background 0.15s; cursor: pointer; }
+.student-row.active-row { background: #e8f4fd !important; }
+.student-row:hover { background: #f8f9fa; }
+.status-present { background: #d4edda; border-color: #28a745 !important; }
+.status-absent { background: #f8d7da; border-color: #dc3545 !important; }
+.status-late { background: #fff3cd; border-color: #ffc107 !important; }
+#voiceBtn.listening { animation: pulse 1s infinite; background: #dc3545; border-color: #dc3545; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,53,69,0.4); } 50% { box-shadow: 0 0 0 10px rgba(220,53,69,0); } }
+.shortcut-badge { font-size: 0.7rem; padding: 2px 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.teacher_dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">{{ course.code }}</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold mb-0"><i class="bi bi-pencil-square me-2 text-primary"></i>Mark Attendance</h2>
+        <p class="text-muted mb-0">{{ course.name }} — {{ course.code }}</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="{{ url_for('main.qr_display', course_id=course.id) }}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-qr-code me-1"></i>QR Mode
+        </a>
+        <a href="{{ url_for('main.course_analytics', course_id=course.id) }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-graph-up me-1"></i>Analytics
+        </a>
+    </div>
+</div>
+
+<!-- Attendance Modes Tabs -->
+<ul class="nav nav-pills mb-3 gap-1" id="attendanceTabs">
+    <li class="nav-item"><button class="nav-link active" data-tab="manual"><i class="bi bi-pencil me-1"></i>Manual</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="voice"><i class="bi bi-mic me-1"></i>Voice</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="keyboard"><i class="bi bi-keyboard me-1"></i>Keyboard</button></li>
+</ul>
+
+<!-- Manual & Keyboard Tabs (share same form) -->
+<div id="tab-manual">
+<form method="POST" id="attendanceForm">
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-0 rounded-top-4 pt-3 pb-0 px-4">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <label class="form-label fw-semibold mb-1">Date</label>
+                    <input type="date" name="date" class="form-control" value="{{ selected_date }}" max="{{ today.isoformat() if today else '' }}">
+                </div>
+                <div class="col-md-8 text-end pt-3">
+                    <button type="button" class="btn btn-success btn-sm" onclick="markAll('present')">
+                        <i class="bi bi-check-all me-1"></i>All Present
+                    </button>
+                    <button type="button" class="btn btn-danger btn-sm ms-1" onclick="markAll('absent')">
+                        <i class="bi bi-x-circle me-1"></i>All Absent
+                    </button>
+                    <span class="text-muted small ms-3" id="countDisplay">0 marked</span>
+                </div>
+            </div>
+        </div>
+        <div class="card-body px-4 pt-2">
+            {% if not students %}
+            <div class="text-center py-4 text-muted">No students enrolled. <a href="{{ url_for('main.manage_enrollments', course_id=course.id) }}">Add students →</a></div>
+            {% else %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="attendanceTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="50">#</th>
+                            <th>Student</th>
+                            <th>Roll No</th>
+                            <th>
+                                <span class="text-success me-2">P</span>
+                                <span class="text-danger me-2">A</span>
+                                <span class="text-warning">L</span>
+                            </th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr class="student-row {% if loop.first %}active-row{% endif %}"
+                            data-index="{{ loop.index0 }}" data-student-id="{{ student.id }}">
+                            <td class="text-muted">{{ loop.index }}</td>
+                            <td>
+                                <div class="fw-semibold">{{ student.username }}</div>
+                                <small class="text-muted">{{ student.email }}</small>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ student.roll_no or 'N/A' }}</span></td>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    {% set curr_status = existing_att.get(student.id, 'absent') %}
+                                    <input type="radio" class="btn-check" name="status_{{ student.id }}" id="p_{{ student.id }}" value="present" {% if curr_status == 'present' %}checked{% endif %}>
+                                    <label class="btn btn-outline-success" for="p_{{ student.id }}">P</label>
+
+                                    <input type="radio" class="btn-check" name="status_{{ student.id }}" id="a_{{ student.id }}" value="absent" {% if curr_status == 'absent' %}checked{% endif %}>
+                                    <label class="btn btn-outline-danger" for="a_{{ student.id }}">A</label>
+
+                                    <input type="radio" class="btn-check" name="status_{{ student.id }}" id="l_{{ student.id }}" value="late" {% if curr_status == 'late' %}checked{% endif %}>
+                                    <label class="btn btn-outline-warning" for="l_{{ student.id }}">L</label>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="status-indicator badge" id="badge_{{ student.id }}">
+                                    {{ curr_status|title }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+        </div>
+        <div class="card-footer bg-white border-0 rounded-bottom-4 px-4 pb-4">
+            <button type="submit" class="btn btn-primary btn-lg px-5" id="submitBtn">
+                <i class="bi bi-save me-2"></i>Save Attendance <kbd class="ms-2 bg-primary border-0 small">Ctrl+Enter</kbd>
+            </button>
+        </div>
+    </div>
+</form>
+</div>
+
+<!-- Voice Tab -->
+<div id="tab-voice" style="display:none">
+    <div class="card border-0 shadow-sm rounded-4 p-4">
+        <div class="text-center mb-4">
+            <h5 class="fw-bold">Voice Recognition Attendance</h5>
+            <p class="text-muted">Click the microphone and say: <em>"Roll 101 present, Roll 102 absent"</em></p>
+        </div>
+        <div class="text-center mb-4">
+            <button class="btn btn-primary btn-lg rounded-circle p-4" id="voiceBtn" onclick="toggleVoice()">
+                <i class="bi bi-mic-fill fs-2"></i>
+            </button>
+            <div class="mt-2 text-muted small" id="voiceStatus">Click to start</div>
+        </div>
+        <div class="bg-light rounded-3 p-3 mb-3" style="min-height: 80px;">
+            <div class="text-muted small mb-1">Transcript:</div>
+            <div id="voiceTranscript" class="fw-semibold">—</div>
+        </div>
+        <div id="voiceResults" class="d-flex flex-wrap gap-2 mb-3"></div>
+        <button class="btn btn-success" onclick="submitVoiceAttendance()" id="voiceSubmitBtn" disabled>
+            <i class="bi bi-save me-1"></i>Save Voice Attendance
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Tab switching
+document.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        ['manual', 'voice', 'keyboard'].forEach(t => {
+            const el = document.getElementById('tab-' + t);
+            if (el) el.style.display = t === btn.dataset.tab ? '' : 'none';
+        });
+    });
+});
+
+// Status badge update
+function updateBadge(studentId) {
+    const radios = document.querySelectorAll(`[name="status_${studentId}"]`);
+    let status = 'absent';
+    radios.forEach(r => { if (r.checked) status = r.value; });
+    const badge = document.getElementById('badge_' + studentId);
+    badge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    badge.className = `status-indicator badge bg-${status === 'present' ? 'success' : status === 'late' ? 'warning text-dark' : 'danger'}`;
+    updateCount();
+}
+
+document.querySelectorAll('.btn-check').forEach(r => {
+    r.addEventListener('change', () => updateBadge(r.name.replace('status_', '')));
+});
+
+function updateCount() {
+    const total = document.querySelectorAll('[id^="p_"]').length;
+    const present = document.querySelectorAll('[id^="p_"]:checked').length;
+    document.getElementById('countDisplay').textContent = `${present}/${total} present`;
+}
+
+function markAll(status) {
+    document.querySelectorAll(`input[id^="${status[0]}_"]`).forEach(r => { r.checked = true; });
+    document.querySelectorAll('[id^="badge_"]').forEach(badge => {
+        const sid = badge.id.replace('badge_', '');
+        updateBadge(sid);
+    });
+}
+
+// Keyboard shortcuts
+let currentRowIdx = 0;
+const rows = document.querySelectorAll('.student-row');
+
+function activateRow(idx) {
+    rows.forEach(r => r.classList.remove('active-row'));
+    if (rows[idx]) {
+        rows[idx].classList.add('active-row');
+        rows[idx].scrollIntoView({ block: 'nearest' });
+        currentRowIdx = idx;
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    const row = rows[currentRowIdx];
+    if (!row) return;
+    const sid = row.dataset.studentId;
+
+    if (e.key === 'p' || e.key === 'P') { document.getElementById('p_' + sid).checked = true; updateBadge(sid); activateRow(Math.min(currentRowIdx + 1, rows.length - 1)); }
+    else if (e.key === 'a' || e.key === 'A') { document.getElementById('a_' + sid).checked = true; updateBadge(sid); activateRow(Math.min(currentRowIdx + 1, rows.length - 1)); }
+    else if (e.key === 'l' || e.key === 'L') { document.getElementById('l_' + sid).checked = true; updateBadge(sid); activateRow(Math.min(currentRowIdx + 1, rows.length - 1)); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); activateRow(Math.min(currentRowIdx + 1, rows.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activateRow(Math.max(currentRowIdx - 1, 0)); }
+    else if (e.ctrlKey && e.key === 'Enter') { if (confirm('Submit attendance?')) document.getElementById('attendanceForm').submit(); }
+});
+
+rows.forEach((row, i) => row.addEventListener('click', () => activateRow(i)));
+
+// Initialize badges & count
+document.querySelectorAll('[id^="badge_"]').forEach(b => {
+    const sid = b.id.replace('badge_', '');
+    updateBadge(sid);
+});
+updateCount();
+
+// ─── Voice Recognition ─────────────────────────────────────────
+let recognition = null;
+let voiceAttendance = {};
+let silenceTimer = null;
+
+function toggleVoice() {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+        alert('Speech recognition not supported. Use Chrome or Edge.');
+        return;
+    }
+    if (recognition && recognition.running) { recognition.stop(); return; }
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    recognition.running = true;
+
+    document.getElementById('voiceBtn').classList.add('listening');
+    document.getElementById('voiceStatus').textContent = '🎙️ Listening...';
+
+    recognition.onresult = e => {
+        clearTimeout(silenceTimer);
+        let transcript = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+            transcript += e.results[i][0].transcript;
+        }
+        document.getElementById('voiceTranscript').textContent = transcript;
+        parseVoiceCommands(transcript);
+
+        silenceTimer = setTimeout(() => { recognition.stop(); }, 3000);
+    };
+
+    recognition.onend = () => {
+        recognition.running = false;
+        document.getElementById('voiceBtn').classList.remove('listening');
+        document.getElementById('voiceStatus').textContent = '✅ Done. Review and save.';
+        document.getElementById('voiceSubmitBtn').disabled = Object.keys(voiceAttendance).length === 0;
+    };
+
+    recognition.start();
+}
+
+function parseVoiceCommands(text) {
+    const patterns = [
+        /roll\s*(\w+)\s+(present|absent|late)/gi,
+        /(\w+)\s+(present|absent|late)/gi
+    ];
+    let results = {};
+    patterns.forEach(p => {
+        let m;
+        while ((m = p.exec(text)) !== null) {
+            results[m[1].toLowerCase()] = m[2].toLowerCase();
+        }
+    });
+
+    const students = {{ students | map(attribute='roll_no') | list | tojson }};
+    const studentMap = {{ students | map(attribute='id') | list | tojson }};
+
+    Object.entries(results).forEach(([roll, status]) => {
+        const idx = students.findIndex(r => r && r.toLowerCase() === roll);
+        if (idx !== -1) voiceAttendance[studentMap[idx]] = status;
+    });
+
+    renderVoiceResults();
+}
+
+function renderVoiceResults() {
+    const container = document.getElementById('voiceResults');
+    container.innerHTML = '';
+    Object.entries(voiceAttendance).forEach(([sid, status]) => {
+        const colors = { present: 'success', absent: 'danger', late: 'warning' };
+        container.innerHTML += `<span class="badge bg-${colors[status]} text-dark">${sid}: ${status}</span>`;
+    });
+}
+
+function submitVoiceAttendance() {
+    const date = document.querySelector('[name="date"]').value;
+    Object.entries(voiceAttendance).forEach(([sid, status]) => {
+        const radio = document.getElementById(`${status[0]}_${sid}`);
+        if (radio) radio.checked = true;
+    });
+    document.getElementById('attendanceForm').submit();
+}
+</script>
+{% endblock %}

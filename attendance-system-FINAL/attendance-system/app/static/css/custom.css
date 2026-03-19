@@ -1,0 +1,131 @@
+/* ═══════════════════════════════════════
+   AttendAI — Custom Stylesheet
+   Color Palette:
+   Primary: #1F3864  Secondary: #2E75B6
+   ═══════════════════════════════════════ */
+
+:root {
+  --primary: #1F3864;
+  --secondary: #2E75B6;
+  --safe: #28a745;
+  --caution: #ffc107;
+  --warning-orange: #fd7e14;
+  --critical: #dc3545;
+  --bg-light: #f8fafc;
+  --card-radius: 18px;
+  --shadow: 0 4px 20px rgba(31, 56, 100, 0.08);
+}
+
+/* Base */
+body {
+  background: var(--bg-light);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #2d3748;
+}
+
+/* Navbar */
+.main-nav {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  box-shadow: 0 2px 20px rgba(31,56,100,0.25);
+  padding: 0.6rem 0;
+}
+.main-nav .navbar-brand { font-size: 1.3rem; letter-spacing: -0.3px; }
+
+/* Cards */
+.card { border-radius: var(--card-radius) !important; box-shadow: var(--shadow); }
+.card:hover { box-shadow: 0 8px 30px rgba(31,56,100,0.12); }
+
+/* Stat Cards */
+.stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.stat-card:hover { transform: translateY(-4px); box-shadow: 0 12px 35px rgba(31,56,100,0.15) !important; }
+.stat-icon { font-size: 2rem; }
+
+/* Course Cards */
+.course-card { transition: transform 0.2s ease; }
+.course-card:hover { transform: translateY(-5px); }
+
+/* Role Badges */
+.role-badge-admin { background: linear-gradient(135deg, #6f42c1, #e83e8c); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+.role-badge-teacher { background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+.role-badge-student { background: linear-gradient(135deg, #007bff, #6610f2); color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+
+/* Progress Bars */
+.progress { background: #e9ecef; overflow: hidden; }
+.progress-bar { transition: width 0.6s ease; }
+
+/* Risk Badges */
+.badge.bg-orange { background-color: var(--warning-orange) !important; color: white; }
+
+/* Buttons */
+.btn { border-radius: 10px; font-weight: 500; }
+.btn-primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); border: none; }
+.btn-primary:hover { background: linear-gradient(135deg, #16284d, #2666a0); transform: translateY(-1px); box-shadow: 0 4px 15px rgba(31,56,100,0.3); }
+.btn-lg { border-radius: 12px; }
+
+/* Tables */
+.table { border-radius: 12px; overflow: hidden; }
+.table thead th { font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e9ecef; }
+.table-hover tbody tr:hover { background: rgba(31,56,100,0.03); }
+
+/* Alerts */
+.alert { border-radius: 12px; border: none; }
+.alert-success { background: #d1fae5; color: #065f46; }
+.alert-danger { background: #fee2e2; color: #991b1b; }
+.alert-warning { background: #fef3c7; color: #92400e; }
+.alert-info { background: #dbeafe; color: #1e40af; }
+
+/* Modals */
+.modal-content { border-radius: 20px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.modal-header { border-bottom: 1px solid #f0f0f0; }
+
+/* Form Controls */
+.form-control, .form-select { border-radius: 10px; border: 1.5px solid #e2e8f0; padding: 0.55rem 0.9rem; }
+.form-control:focus, .form-select:focus { border-color: var(--secondary); box-shadow: 0 0 0 3px rgba(46,117,182,0.15); }
+.input-group-text { border-radius: 10px 0 0 10px; background: #f8f9fa; border: 1.5px solid #e2e8f0; border-right: none; color: #6c757d; }
+
+/* Navigation Pills */
+.nav-pills .nav-link { border-radius: 10px; color: #6c757d; font-weight: 500; }
+.nav-pills .nav-link.active { background: linear-gradient(135deg, var(--primary), var(--secondary)); }
+
+/* Breadcrumbs */
+.breadcrumb { font-size: 0.85rem; }
+.breadcrumb-item a { color: var(--secondary); text-decoration: none; }
+.breadcrumb-item a:hover { text-decoration: underline; }
+
+/* Keyboard shortcut hints */
+kbd { background: #2d3748; color: white; padding: 2px 6px; border-radius: 5px; font-size: 0.75rem; }
+
+/* Scrollbar Styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+/* Fade-in animation */
+.card { animation: fadeInUp 0.4s ease both; }
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Stagger animation for cards in a row */
+.row > *:nth-child(1) .card { animation-delay: 0s; }
+.row > *:nth-child(2) .card { animation-delay: 0.05s; }
+.row > *:nth-child(3) .card { animation-delay: 0.1s; }
+.row > *:nth-child(4) .card { animation-delay: 0.15s; }
+
+/* Toast */
+.toast { border-radius: 12px; border: none; }
+
+/* Voice button active state */
+.btn.listening { background: #dc3545 !important; border-color: #dc3545 !important; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stat-icon { font-size: 1.5rem; }
+  .h2.fw-bold { font-size: 1.5rem; }
+  main.container-fluid { padding-left: 12px !important; padding-right: 12px !important; }
+}
+
+/* PWA install prompt */
+#installBanner { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; padding: 12px 20px; border-radius: 12px; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: none; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }

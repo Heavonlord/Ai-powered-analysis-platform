@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block title %}Prediction — {{ student.username }}{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a href="{{ url_for('main.teacher_dashboard') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('main.course_analytics', course_id=course.id) }}">{{ course.code }}</a></li>
+                <li class="breadcrumb-item active">Prediction</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold mb-0"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Attendance Prediction</h2>
+        <p class="text-muted mb-0">{{ student.username }} ({{ student.roll_no or 'N/A' }}) — {{ course.name }}</p>
+    </div>
+    <a href="{{ url_for('main.course_analytics', course_id=course.id) }}" class="btn btn-outline-secondary btn-sm">← Analytics</a>
+</div>
+
+{% if prediction %}
+<!-- Prediction Card -->
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body p-4 text-center">
+                <h6 class="text-muted fw-semibold mb-3">CURRENT vs PREDICTED</h6>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <div class="bg-light rounded-3 p-3">
+                            <div class="h3 fw-bold text-primary">{{ prediction.current_pct }}%</div>
+                            <small class="text-muted">Current</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="rounded-3 p-3 bg-{{ prediction.rec_color }}-subtle">
+                            <div class="h3 fw-bold text-{{ prediction.rec_color }}">{{ prediction.predicted_pct }}%</div>
+                            <small class="text-muted">After {{ prediction.future_classes }} classes</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-{{ prediction.rec_color }} text-start py-2 px-3 rounded-3 mb-3">
+                    <small>{{ prediction.recommendation }}</small>
+                </div>
+
+                <div class="d-flex justify-content-between text-muted small">
+                    <span>Method: {{ prediction.method.replace('_', ' ').title() }}</span>
+                    <span class="badge bg-{{ 'success' if prediction.confidence == 'high' else 'warning' if prediction.confidence == 'medium' else 'secondary' }} text-dark">
+                        {{ prediction.confidence }} confidence
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance Trend Chart -->
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3">Attendance Trajectory</h6>
+                <canvas id="trendChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Weekly Pattern -->
+{% set weekly_data = weekly | tojson %}
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3">Day-wise Attendance Pattern</h6>
+                <canvas id="weeklyChart" height="220"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-4">
+                <h6 class="fw-bold mb-3">Recent Attendance Log</h6>
+                <div style="max-height: 280px; overflow-y: auto;">
+                    {% set trend_data = trend | tojson | tojson %}
+                    <table class="table table-sm">
+                        <thead class="table-light">
+                            <tr><th>Date</th><th>Status</th><th>Running %</th></tr>
+                        </thead>
+                        <tbody id="trendTable">
+                            <tr><td colspan="3" class="text-muted text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const trendData = {{ trend | safe }};
+const weeklyData = {{ weekly | safe }};
+
+// Trend Chart
+if (trendData.length > 0) {
+    new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: trendData.map(d => d.date),
+            datasets: [{
+                label: 'Attendance %',
+                data: trendData.map(d => d.pct),
+                borderColor: '#2E75B6',
+                backgroundColor: 'rgba(46,117,182,0.1)',
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+            }, {
+                label: '75% Threshold',
+                data: trendData.map(() => 75),
+                borderColor: '#ffc107',
+                borderDash: [6, 3],
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false,
+            }]
+        },
+        options: {
+            scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } },
+            plugins: { legend: { position: 'bottom' } },
+            responsive: true
+        }
+    });
+}
+
+// Weekly Pattern Chart
+const days = Object.keys(weeklyData);
+const dayVals = Object.values(weeklyData);
+if (days.length > 0) {
+    new Chart(document.getElementById('weeklyChart'), {
+        type: 'bar',
+        data: {
+            labels: days,
+            datasets: [{
+                label: 'Attendance %',
+                data: dayVals,
+                backgroundColor: dayVals.map(v => v >= 75 ? '#28a745' : '#dc3545'),
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } },
+            plugins: { legend: { display: false } }
+        }
+    });
+}
+
+// Populate recent log table (last 15 entries)
+const tbody = document.getElementById('trendTable');
+const recent = trendData.slice(-15).reverse();
+tbody.innerHTML = recent.map(d => {
+    const colors = { present: 'success', absent: 'danger', late: 'warning' };
+    return `<tr>
+        <td>${d.date}</td>
+        <td><span class="badge bg-${colors[d.status] || 'secondary'}">${d.status}</span></td>
+        <td>${d.pct}%</td>
+    </tr>`;
+}).join('') || '<tr><td colspan="3" class="text-muted text-center">No data</td></tr>';
+</script>
+{% endblock %}
